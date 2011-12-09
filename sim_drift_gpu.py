@@ -12,22 +12,6 @@ code = """
 
     extern "C"
     {
-    #define CURAND_CALL ( x ) do { if (( x ) != CURAND_STATUS_SUCCESS ) {\
-    printf (" Error at % s :% d \ n " , __FILE__ , __LINE__ ) ;\
-    return EXIT_FAILURE ;}} while (0)
-
-    __global__ void setup_kernel (int nthreads, curandState *state, unsigned long long seed, unsigned long long offset)
-    {
-        /* Thanks to Anthony LaTorre */
-        int id = blockIdx.x*blockDim.x + threadIdx.x;
-
-        if (id >= nthreads)
-            return;
-        /* Each thread gets same seed, a different sequence number, no offset */
-        curand_init (seed, id, offset, &state[id]);
-    }
-
-
     __global__ void sim_drift(curandState *global_state, float const v, float const V, float const a, float const z, float const Z, float const t, float const T, float const dt, float const intra_sv, float *out)
     {
         float start_delay, start_point, drift_rate, rand, prob_up, position, step_size, time;
@@ -106,19 +90,13 @@ code = """
 
 mod = SourceModule(code, keep=False, no_extern_c=True)
 
-size=512
-seed=1234
+size = 512
+seed = 1234
 
 sim_drift = mod.get_function("sim_drift")
 sim_drift_var_thresh = mod.get_function("sim_drift_var_thresh")
-setup_kernel = mod.get_function("setup_kernel")
 
 g = pycuda.curandom.XORWOWRandomNumberGenerator()
-#array = pycuda.gpuarray.GPUArray((200, 400), dtype=np.float32)
-#g.fill_normal(array)
-
-#rng_states = cuda.mem_alloc(size*pycuda.characterize.sizeof('curandStateXORWOW', '#include <curand_kernel.h>'))
-#setup_kernel(np.int32(size), rng_states, np.uint64(seed), np.uint64(0), block=(64,1,1), grid=(size//64+1,1))
 
 dt = 1e-4
 max_time = 5.
@@ -146,5 +124,3 @@ sim_drift_gpu(out, 1, .1, 2, .5, .1, .3, .1, size)
 
 print "Out:"
 print out.get()
-
-#rng_states.free()
