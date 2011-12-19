@@ -73,7 +73,7 @@ code = """
         time = 0;
         position = start_point;
 
-        while (fabs(position) > a[x_pos] & x_pos < a_len) {
+        while (fabs(position) < a[x_pos] & time < a_len) {
             rand = curand_uniform(&local_state);
             position += ((rand < prob_up)*2 - 1) * step_size;
             time += dt;
@@ -150,28 +150,27 @@ def sim_drift_var_thresh(v, V, a, z, Z, t, T, max_time, size=512, dt=1e-4, updat
         return _out.get()
 
 
-def gen_weibull_gpu(k, l, max_time=5, dt=1e-4):
+def gen_weibull_gpu(a, k, l, max_time=5, dt=1e-4):
     max_time = np.float32(max_time)
-    #dt = np.float32(dt)
-    #k = np.float32(k)
-    #l = np.float32(l)
-
     x = pycuda.gpuarray.arange(0., max_time, dt, dtype=np.float32)
-    #y = k * x
+
     # Weibull pdf
     thresh_func_gpu = k / l * (x / l)**(k - 1) * pycuda_exp(-(x / l)**k)
-
+    thresh_func_gpu *= a
     return thresh_func_gpu
 
-thresh_func = gen_weibull_gpu(1, 1)
+thresh_func = gen_weibull_gpu(3, 1, 1)
 max_time = 5.
 
+thresh_const = np.ones(max_time/1e-4, dtype=np.float32)
+thresh_func_const = pycuda.gpuarray.to_gpu(thresh_const)
+print thresh_func_const.get()
 plt.plot(thresh_func.get())
 plt.plot(-thresh_func.get())
 
 #thresh_func = np.array(a*np.exp(-rate*np.linspace(0, max_time, steps)), dtype=np.float32)
-size = 512
-out = sim_drift_var_thresh(0, .1, thresh_func, 0., .1, .3, .1, max_time, size=size, update=True)
+size = 256
+out = sim_drift_var_thresh(.5, .1, thresh_func, 0., .1, .3, .1, max_time, size=size, update=True)
 
 plt.figure()
 plt.hist(out, bins=40)
